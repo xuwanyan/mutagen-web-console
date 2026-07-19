@@ -210,6 +210,7 @@ func findMutagenBin() string {
 		dir := filepath.Dir(exe)
 		candidates := []string{
 			filepath.Join(dir, "mutagen.exe"),
+			filepath.Join(dir, "..", "tools", "mutagen.exe"),
 			filepath.Join(dir, "..", "build", "mutagen.exe"),
 			"C:\\mutagen\\mutagen.exe",
 		}

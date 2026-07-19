@@ -30,19 +30,41 @@ web-console/
 │   ├── docker-compose.yml
 │   ├── install.bat
 │   └── manage.bat
-├── build.ps1        # 统一构建脚本
+├── build.ps1        # Windows 构建脚本（交叉编译）
+├── build.sh         # Linux 构建脚本
 └── build/           # 构建产物（gitignore）
 ```
 
 ---
 
-## 服务端部署（Linux / Docker）
+## 服务端部署（Linux）
 
-### 方式一：Docker 部署（推荐）
+### 方式一：Docker 部署（推荐，Linux 上构建）
 
 ```bash
-# 1. 构建（Windows 上交叉编译）
-cd web-console
+# 1. 克隆代码
+git clone https://github.com/xuwanyan/mutagen-web-console.git
+cd mutagen-web-console
+
+# 2. 构建
+chmod +x build.sh
+./build.sh
+
+# 3. 构建 Docker 镜像
+docker build -t mutagen-web -f scripts/Dockerfile build/
+
+# 4. 运行
+docker run -d \
+  --name mutagen-web \
+  -p 18080:18080 \
+  -v mutagen-data:/app/data \
+  mutagen-web
+```
+
+### 方式二：Docker 部署（Windows 交叉编译）
+
+```bash
+# 1. 在 Windows 上构建
 .\build.ps1
 
 # 2. 把 build/ 目录传到 Linux 服务器
@@ -51,18 +73,23 @@ cd web-console
 docker build -t mutagen-web -f scripts/Dockerfile build/
 
 # 4. 运行
-docker run -d \
-  --name mutagen-web \
-  -p 18080:18080 \
-  -v mutagen-data:/app/data \
-  -v /path/to/auth.json:/app/auth.json \
-  mutagen-web
+docker run -d -p 18080:18080 -v mutagen-data:/app/data --name mutagen-web mutagen-web
 ```
 
-### 方式二：直接运行
+### 方式三：直接运行
 
 ```bash
-# 需要 Linux amd64 二进制
+# 需要 Go 1.22+ 和 Node.js 18+
+cd server
+go build -o ../build/mutagen-web-server_linux .
+
+# 前端
+cd ../web
+npm install && npm run build
+cp -r dist/* ../build/web/
+
+# 运行
+cd ../build
 chmod +x mutagen-web-server_linux
 ./mutagen-web-server_linux -addr :18080
 ```
@@ -151,51 +178,42 @@ agent-pack-xxx.zip
 
 ---
 
-## 本地开发构建
+## 构建
 
-### 前提
+### Linux 上构建
 
-- Go 1.22+
-- Node.js 18+
-- Python 3.8+（仅测试用）
+```bash
+chmod +x build.sh
+./build.sh
+```
 
-### 构建全部
+### Windows 上构建
 
 ```powershell
-# 一键构建
 .\build.ps1
-
-# 产物在 build/ 目录：
-#   mutagen-web-server.exe       - Windows 版 server
-#   mutagen-web-server_linux     - Linux 版 server
-#   mutagen-web-agent.exe        - Windows agent
-#   agent-setup.exe              - 安装器（弃用）
-#   web/                         - 前端静态文件
 ```
 
 ### 单独构建
 
 ```bash
-# Server
-cd server && go build -o ../build/mutagen-web-server.exe .
+# Server（Linux）
+cd server && GOOS=linux GOARCH=amd64 go build -o ../build/mutagen-web-server_linux .
 
-# Agent
-cd agent && go build -o ../build/mutagen-web-agent.exe .
+# Agent（Windows）
+cd agent && GOOS=windows GOARCH=amd64 go build -o ../build/mutagen-web-agent.exe .
 
 # 前端
 cd web && npm run build && cp -r dist/* ../build/web/
 ```
 
-### 本地测试
+### 构建产物
 
-```bash
-# 本地测试需要先构建，然后把 build/ 部署到 Linux 服务器
-# 或直接用 Docker：
-docker build -t mutagen-web -f scripts/Dockerfile build/
-docker run -d -p 18080:18080 mutagen-web
 ```
-
-打开 `http://服务器IP:18080`
+build/
+  ├── mutagen-web-server_linux   - Linux server（部署到服务器）
+  ├── mutagen-web-agent.exe      - Windows agent
+  └── web/                       - 前端静态文件
+```
 
 ---
 
@@ -207,4 +225,4 @@ docker run -d -p 18080:18080 mutagen-web
 | 前端 | Vue 3 + Vite |
 | 存储 | JSON 文件 |
 | 同步引擎 | Mutagen 0.18.1 |
-| 部署 | Docker / systemd / Windows 服务 |
+| 部署 | Docker / systemd |

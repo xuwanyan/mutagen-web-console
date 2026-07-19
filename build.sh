@@ -8,8 +8,9 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 BUILD="$ROOT/build"
-
+mkdir $BUILD
 echo "=== Building Mutagen (agents + Linux CLI) ==="
+cp "$ROOT/scripts/Dockerfile" $BUILD
 cd "$ROOT/mutagen"
 go run scripts/build.go
 cp build/mutagen-agents.tar.gz "$BUILD/"
@@ -34,4 +35,4 @@ cp -r "$ROOT/web/dist/"* "$BUILD/web/"
 
 echo ""
 echo "Build complete!"
-ls -lh "$BUILD" | grep -v web
+ls -lh "$BUILD"

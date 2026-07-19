@@ -38,6 +38,7 @@ jobs:
           cd web
           npm install
           npm run build
+          mkdir -p ../build/web
           cp -r dist/* ../build/web/
 
       - name: List Build Artifacts

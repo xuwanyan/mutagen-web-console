@@ -32,3 +32,6 @@ mutagen.exe
 
 # Test data
 smoke_test.json
+# Mutagen build
+mutagen/build/
+mutagen/web-console/

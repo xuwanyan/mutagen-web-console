@@ -1,0 +1,4 @@
+{
+  "server": "ws://localhost:18080/ws/agent",
+  "name": "test-local-01"
+}

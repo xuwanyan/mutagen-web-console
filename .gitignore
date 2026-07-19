@@ -1,0 +1,19 @@
+# Build output
+build/
+web/dist/
+web/node_modules/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Go
+*.exe~
+*.exe

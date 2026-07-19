@@ -1,0 +1,4 @@
+{
+  "server": "ws://你的服务器IP:8080/ws/agent",
+  "name": "这台机器的名称(自动注册用,首次连接后会自动写回token和machineId)"
+}

@@ -1,0 +1,13 @@
+version: "3.8"
+
+services:
+  mutagen-web:
+    build:
+      context: ../build
+      dockerfile: ../scripts/Dockerfile
+    container_name: mutagen-web
+    ports:
+      - "18080:18080"
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped

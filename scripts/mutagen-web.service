@@ -1,0 +1,14 @@
+[Unit]
+Description=Mutagen Web Server - Remote file sync management
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/opt/mutagen-web/server -addr 0.0.0.0:18080
+WorkingDirectory=/opt/mutagen-web
+Restart=always
+RestartSec=5
+User=root
+
+[Install]
+WantedBy=multi-user.target

@@ -192,6 +192,7 @@ func findAgentBin() string {
 		dir := filepath.Dir(exe)
 		candidates := []string{
 			filepath.Join(dir, "mutagen-web-agent.exe"),
+			filepath.Join(dir, "tools", "mutagen-web-agent.exe"),
 			filepath.Join(dir, "agent.exe"),
 			filepath.Join(dir, "..", "build", "mutagen-web-agent.exe"),
 			filepath.Join(dir, "..", "build", "agent.exe"),
@@ -210,6 +211,7 @@ func findMutagenBin() string {
 		dir := filepath.Dir(exe)
 		candidates := []string{
 			filepath.Join(dir, "mutagen.exe"),
+			filepath.Join(dir, "tools", "mutagen.exe"),
 			filepath.Join(dir, "..", "tools", "mutagen.exe"),
 			filepath.Join(dir, "..", "build", "mutagen.exe"),
 			"C:\\mutagen\\mutagen.exe",

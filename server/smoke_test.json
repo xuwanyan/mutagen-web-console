@@ -4,7 +4,7 @@
       "id": 16,
       "name": "test",
       "token": "6d771c6737ae902a0b0f427d17f0622a",
-      "lastSeenAt": "2026-07-19T16:37:36.5770085+08:00",
+      "lastSeenAt": "2026-07-19T16:44:36.5773986+08:00",
       "agentVersion": "0.1.0",
       "os": "windows",
       "createdAt": "2026-07-19T12:59:37.2335688+08:00",
@@ -25,7 +25,7 @@
       "status": "Watching for changes",
       "lastError": "",
       "createdAt": "2026-07-19T15:52:56.0582684+08:00",
-      "updatedAt": "2026-07-19T16:37:56.8534958+08:00"
+      "updatedAt": "2026-07-19T16:44:47.0899031+08:00"
     }
   ],
   "configs": [

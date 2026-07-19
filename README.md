@@ -11,11 +11,11 @@
                                                       （文件同步持续运行）
 ```
 
-| 组件 | 说明 |
-|---|---|
-| **Server** | Go/Gin，管理面，提供 Web UI + API + WebSocket |
-| **Agent** | 部署在目标 Windows 机器上，通过 WebSocket 反向连接 Server |
-| **Mutagen** | 文件同步引擎，实际执行同步任务 |
+| 组件 | 说明 | 部署平台 |
+|---|---|---|
+| **Server** | Go/Gin，管理面，提供 Web UI + API + WebSocket | **Linux**（Docker） |
+| **Agent** | 部署在目标机器上，通过 WebSocket 反向连接 Server | **Windows** |
+| **Mutagen** | 文件同步引擎，实际执行同步任务 | Windows |
 
 ## 目录结构
 
@@ -189,11 +189,13 @@ cd web && npm run build && cp -r dist/* ../build/web/
 ### 本地测试
 
 ```bash
-cd build
-mutagen-web-server.exe -addr :18080 -auth admin:admin123
+# 本地测试需要先构建，然后把 build/ 部署到 Linux 服务器
+# 或直接用 Docker：
+docker build -t mutagen-web -f scripts/Dockerfile build/
+docker run -d -p 18080:18080 mutagen-web
 ```
 
-打开 `http://127.0.0.1:18080`
+打开 `http://服务器IP:18080`
 
 ---
 

@@ -1,11 +1,14 @@
+# Server 部署到 Linux，客户端（Agent）部署到 Windows
+# 构建：docker build -t mutagen-web -f scripts/Dockerfile build/
 FROM alpine:3.19
 
 RUN apk add --no-cache ca-certificates tzdata
 
 WORKDIR /app
 
-# 构建时需要把 build/ 目录作为上下文传入
-# docker build -t mutagen-web -f scripts/Dockerfile build/
+# web-console/build/ 目录下需包含：
+#   mutagen-web-server_linux  - Linux server 二进制
+#   web/                      - 前端静态文件
 COPY mutagen-web-server_linux ./server
 COPY web/ ./web/
 

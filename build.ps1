@@ -1,36 +1,27 @@
 # ============================================
-# Mutagen Web Console - Unified Build Script
+# Mutagen Web Console - Build Script
 # Output: build/
-#   mutagen-web-server.exe       - Windows server
-#   mutagen-web-server_linux     - Linux server
+#   mutagen-web-server_linux     - Linux server (amd64)
 #   mutagen-web-agent.exe        - Windows agent
-#   agent-setup.exe              - Installer
-#   web\                         - Frontend
+#   web\                         - Frontend static files
 # ============================================
 $ErrorActionPreference = "Stop"
 $ROOT = Split-Path $PSCommandPath -Parent
 $BUILD = Join-Path $ROOT "build"
 
-Write-Host "=== Building mutagen-web-server.exe ==="
-Set-Location (Join-Path $ROOT "server")
-go build -o (Join-Path $BUILD "mutagen-web-server.exe") .
-if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-
 Write-Host "=== Building mutagen-web-server_linux ==="
+Set-Location (Join-Path $ROOT "server")
 $env:GOOS = "linux"; $env:GOARCH = "amd64"
 go build -o (Join-Path $BUILD "mutagen-web-server_linux") .
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 Remove-Item Env:\GOOS, Env:\GOARCH -ErrorAction SilentlyContinue
 
 Write-Host "=== Building mutagen-web-agent.exe ==="
+$env:GOOS = "windows"; $env:GOARCH = "amd64"
 Set-Location (Join-Path $ROOT "agent")
 go build -o (Join-Path $BUILD "mutagen-web-agent.exe") .
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-
-Write-Host "=== Building agent-setup.exe ==="
-Set-Location (Join-Path $ROOT "agent-setup")
-go build -o (Join-Path $BUILD "agent-setup.exe") .
-if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+Remove-Item Env:\GOOS, Env:\GOARCH -ErrorAction SilentlyContinue
 
 Write-Host "=== Building frontend ==="
 Set-Location (Join-Path $ROOT "web")

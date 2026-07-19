@@ -1,6 +1,12 @@
 # Build output
-build/
-dist/
+build/*
+buildagent.exe
+buildserver.exe
+buildserver_linux
+buildweb/
+
+# Frontend build
+web/dist/
 
 # Dependencies
 web/node_modules/
@@ -18,10 +24,11 @@ Thumbs.db
 
 # Go
 *.exe~
+*.exe
 
 # Binary assets
-**/mutagen-agents.tar.gz
-*.zip
+mutagen-agents.tar.gz
+mutagen.exe
 
-# Runtime data
-server/smoke_test.json
+# Test data
+smoke_test.json

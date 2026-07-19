@@ -1,6 +1,8 @@
 # Build output
 build/
-web/dist/
+dist/
+
+# Dependencies
 web/node_modules/
 
 # IDE
@@ -16,4 +18,10 @@ Thumbs.db
 
 # Go
 *.exe~
-*.exe
+
+# Binary assets
+**/mutagen-agents.tar.gz
+*.zip
+
+# Runtime data
+server/smoke_test.json

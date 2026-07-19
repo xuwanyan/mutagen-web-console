@@ -21,13 +21,17 @@ jobs:
         with:
           node-version: "20"
 
-      - name: Build Mutagen (Windows)
+      - name: Build Mutagen
         run: |
           cd mutagen
           go run scripts/build.go
           mkdir -p ../build
-          cp build/cli/windows_amd64/mutagen.exe ../build/
           cp build/mutagen-agents.tar.gz ../build/
+
+      - name: Build Mutagen CLI (Windows)
+        run: |
+          cd mutagen/cmd/mutagen
+          GOOS=windows GOARCH=amd64 go build -o ../../build/mutagen.exe .
 
       - name: Build Server (Linux)
         run: |

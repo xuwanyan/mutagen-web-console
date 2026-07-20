@@ -213,6 +213,9 @@ func updateTask(c *gin.Context, hub *ws.Hub) {
 		return
 	}
 
+	// 保存旧名称（用于 terminate）
+	oldName := task.Name
+
 	// 重名校验（排除自己）
 	if req.Name != "" && req.Name != task.Name {
 		if existing := db.GetStore().FindTaskByName(machineID, req.Name); existing != nil {
@@ -247,11 +250,11 @@ func updateTask(c *gin.Context, hub *ws.Hub) {
 
 	// 如果 agent 在线，terminate 旧同步 + create 新同步
 	if hub.IsOnline(machineID) {
-		// 先 terminate 旧的
+		// 先 terminate 旧的（用旧名称）
 		termCmd := &ws.CommandPayload{
 			CommandID: ws.GenerateToken(),
 			Command:   "terminate_sync",
-			Params:    map[string]interface{}{"name": task.Name},
+			Params:    map[string]interface{}{"name": oldName},
 		}
 		hub.SendCommand(machineID, termCmd)
 

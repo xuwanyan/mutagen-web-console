@@ -31,7 +31,7 @@ jobs:
       - name: Build Mutagen CLI (Windows)
         run: |
           cd mutagen/cmd/mutagen
-          GOOS=windows GOARCH=amd64 go build -o ../../build/mutagen.exe .
+          GOOS=windows GOARCH=amd64 go build -tags mutagencli -o ../../build/mutagen.exe .
 
       - name: Build Server (Linux)
         run: |

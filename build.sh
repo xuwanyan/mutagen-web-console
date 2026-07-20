@@ -17,7 +17,7 @@ cp build/mutagen-agents.tar.gz "$BUILD/"
 
 echo "=== Building Mutagen CLI (Windows) ==="
 cd "$ROOT/mutagen/cmd/mutagen"
-GOOS=windows GOARCH=amd64 go build -o "$BUILD/mutagen.exe" .
+GOOS=windows GOARCH=amd64 go build -tags mutagencli -o "$BUILD/mutagen.exe" .
 
 echo "=== Building mutagen-web-server_linux ==="
 cd "$ROOT/server"

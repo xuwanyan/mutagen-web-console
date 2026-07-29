@@ -499,6 +499,10 @@ func (a *Agent) handleCommand(cmd *CommandPayload) {
 		ignoreVcs := getBool(cmd.Params, "ignoreVcs")
 		symlinkMode := getString(cmd.Params, "symlinkMode")
 		ignorePaths := getStringSlice(cmd.Params, "ignorePaths")
+		// 幂等创建：先终止同名会话，避免重建/重试时产生重名会话（不存在时忽略错误）
+		if out, terr := a.Executor.TerminateSync(name); terr != nil {
+			log.Printf("pre-create terminate %s: %s | %v", name, out, terr)
+		}
 		output, err := a.Executor.CreateSync(name, alpha, beta, mode, ignoreVcs, symlinkMode, ignorePaths)
 		if err != nil {
 			result.Success = false
@@ -533,6 +537,10 @@ func (a *Agent) handleCommand(cmd *CommandPayload) {
 		name := getString(cmd.Params, "name")
 		output, err := a.Executor.TerminateSync(name)
 		setResult(result, output, err)
+		// 同步清理失败重试队列，避免自动重试把已删除的任务重新建回来
+		a.ftMu.Lock()
+		delete(a.failedTasks, name)
+		a.ftMu.Unlock()
 
 	case "update_global_config":
 		content := getString(cmd.Params, "content")
@@ -609,6 +617,8 @@ func (a *Agent) retryFailedTasks() {
 		symlinkMode := getString(ft.Params, "symlinkMode")
 		ignorePaths := getStringSlice(ft.Params, "ignorePaths")
 
+		// 幂等创建：先终止同名会话，防止上次半成功造成重名（不存在时忽略错误）
+		a.Executor.TerminateSync(name)
 		output, err := a.Executor.CreateSync(name, alpha, beta, mode, ignoreVcs, symlinkMode, ignorePaths)
 		ft.Retries++
 		ft.LastAttempt = time.Now()

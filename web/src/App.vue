@@ -802,6 +802,13 @@ function downloadAgentPack(m) {
 watch(selectedMachineId, () => { loadTasks(); loadTaskHosts() })
 watch(configMachineId, loadConfig)
 
+// 任务状态自动轮询（与 agent 10s 上报周期对齐），仅在任务页且已选中机器时拉取
+setInterval(() => {
+  if (loggedIn.value && currentTab.value === 'tasks' && selectedMachineId.value) {
+    loadTasks()
+  }
+}, 10000)
+
 onMounted(() => {
   if (loggedIn.value) {
     loadMachines()

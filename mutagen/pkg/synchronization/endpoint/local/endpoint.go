@@ -191,6 +191,10 @@ type endpoint struct {
 	// stager will only be used in at most one of Stage or Transition methods at
 	// any given time.
 	stager stager
+	// backup holds the effective pre-transition backup configuration for this
+	// endpoint. This field is static and thus safe for concurrent reads.
+	// [CUSTOM PATCH]
+	backup backupConfig
 }
 
 // NewEndpoint creates a new local endpoint instance using the specified session
@@ -460,6 +464,13 @@ func NewEndpoint(
 	scanLock <- struct{}{}
 
 	// Create the endpoint.
+	// [CUSTOM PATCH] Load pre-transition backup configuration for this machine.
+	// Configuration is read locally (environment variables, then
+	// ~/.mutagen/backup.json) because endpoint configuration is not transmitted
+	// across the network.
+	backupCfg := loadBackupConfig(root, logger)
+	backupCfg.sessionIdentifier = sessionIdentifier
+
 	endpoint := &endpoint{
 		logger:                       logger,
 		root:                         root,
@@ -489,6 +500,7 @@ func NewEndpoint(
 			maximumStagingFileSize,
 			hasherFactory,
 		),
+		backup: backupCfg,
 	}
 
 	// Start the cache saving Goroutine.
@@ -1333,10 +1345,41 @@ func (e *endpoint) Transition(ctx context.Context, transitions []*core.Change) (
 	// because these aren't updated concurrently and thus don't fall under the
 	// scope of the scan lock.
 	e.unlockScanLock()
+
+	// [CUSTOM PATCH] Back up existing on-disk content before it is overwritten
+	// or deleted, if pre-transition backup is enabled for this endpoint. This
+	// runs on the machine whose files are about to change.
+	effectiveTransitions := transitions
+	var backupProblems []*core.Problem
+	var backupOrigIndex []int
+	var backupSkipped map[int]*core.Entry
+	if e.backup.enabled {
+		failures := backupBeforeTransition(e.root, transitions, e.backup, e.logger)
+		if len(failures) > 0 && !e.backup.failOpen {
+			// Fail-closed: skip the transitions whose backup failed so that the
+			// existing content is protected from being overwritten or deleted.
+			effectiveTransitions = make([]*core.Change, 0, len(transitions))
+			backupOrigIndex = make([]int, 0, len(transitions))
+			backupSkipped = make(map[int]*core.Entry, len(failures))
+			for i, transition := range transitions {
+				if msg, failed := failures[transition.Path]; failed {
+					backupSkipped[i] = transition.Old
+					backupProblems = append(backupProblems, &core.Problem{
+						Path:  transition.Path,
+						Error: "skipped: pre-transition backup failed: " + msg,
+					})
+					continue
+				}
+				effectiveTransitions = append(effectiveTransitions, transition)
+				backupOrigIndex = append(backupOrigIndex, i)
+			}
+		}
+	}
+
 	results, problems, stagerMissingFiles := core.Transition(
 		ctx,
 		e.root,
-		transitions,
+		effectiveTransitions,
 		e.lastReturnedScanCache,
 		e.symbolicLinkMode,
 		e.defaultFileMode,
@@ -1346,6 +1389,25 @@ func (e *endpoint) Transition(ctx context.Context, transitions []*core.Change) (
 		e.stager,
 	)
 	e.lockScanLock(context.Background())
+
+	// [CUSTOM PATCH] If backup skipped some transitions to protect data,
+	// re-expand the results to align positionally with the original transition
+	// slice, and prepend the backup-related problems.
+	if backupOrigIndex != nil {
+		expanded := make([]*core.Entry, len(transitions))
+		for i := range transitions {
+			if old, ok := backupSkipped[i]; ok {
+				expanded[i] = old
+			}
+		}
+		for j, result := range results {
+			expanded[backupOrigIndex[j]] = result
+		}
+		results = expanded
+	}
+	if len(backupProblems) > 0 {
+		problems = append(backupProblems, problems...)
+	}
 
 	// Determine whether or not the transition made any changes on disk.
 	var transitionMadeChanges bool

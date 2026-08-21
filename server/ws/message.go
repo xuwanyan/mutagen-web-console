@@ -3,16 +3,19 @@ package ws
 import (
 	"encoding/json"
 	"time"
+
+	"mutagen-web/server/models"
 )
 
 // MessageType 定义 WebSocket 消息类型
 const (
 	// Agent -> Server
-	MsgTypeRegister      = "register"
-	MsgTypeAutoRegister  = "auto_register"
-	MsgTypeHeartbeat     = "heartbeat"
-	MsgTypeSyncStatus    = "sync_status"
-	MsgTypeCommandResult = "command_result"
+	MsgTypeRegister       = "register"
+	MsgTypeAutoRegister   = "auto_register"
+	MsgTypeHeartbeat      = "heartbeat"
+	MsgTypeSyncStatus     = "sync_status"
+	MsgTypeCommandResult  = "command_result"
+	MsgTypeSSHConfigReport = "ssh_config_report"
 
 	// Server -> Agent
 	MsgTypeCommand            = "command"
@@ -40,6 +43,7 @@ type AutoRegisterPayload struct {
 	Name         string `json:"name"`
 	AgentVersion string `json:"agentVersion"`
 	OS           string `json:"os"`
+	RegisterKey  string `json:"registerKey,omitempty"` // 可选注册密钥，服务端配置 -register-key 时必须匹配
 }
 
 // AutoRegisterResultPayload 自动注册结果
@@ -55,6 +59,12 @@ type HeartbeatPayload struct {
 	MachineID string `json:"machineId"`
 }
 
+// SSHConfigReportPayload SSH 配置自动上报
+type SSHConfigReportPayload struct {
+	MachineID string `json:"machineId"`
+	Content   string `json:"content"`
+}
+
 // SyncStatusPayload 同步状态上报
 type SyncStatusPayload struct {
 	MachineID string       `json:"machineId"`
@@ -62,11 +72,17 @@ type SyncStatusPayload struct {
 }
 
 type TaskStatus struct {
-	Name   string `json:"name"`
-	Status string `json:"status"`
-	Error  string `json:"error,omitempty"`
-	Alpha  string `json:"alpha,omitempty"`
-	Beta   string `json:"beta,omitempty"`
+	Identifier         string                   `json:"identifier,omitempty"`
+	Name               string                   `json:"name"`
+	Status             string                   `json:"status"`
+	Error              string                   `json:"error,omitempty"`
+	Alpha              string                   `json:"alpha,omitempty"`
+	Beta               string                   `json:"beta,omitempty"`
+	Mode               string                   `json:"mode,omitempty"`
+	SymlinkMode        string                   `json:"symlinkMode,omitempty"`
+	IgnoreVcs          bool                     `json:"ignoreVcs,omitempty"`
+	IgnorePaths        []string                 `json:"ignorePaths,omitempty"`
+	TransitionProblems []models.TransitionProblem `json:"transitionProblems,omitempty"`
 }
 
 // CommandPayload 服务端下发的命令

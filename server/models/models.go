@@ -16,20 +16,28 @@ type Machine struct {
 }
 
 type SyncTask struct {
-	ID                 uint      `json:"id" gorm:"primaryKey"`
-	MachineID          uint      `json:"machineId" gorm:"not null;index"`
-	Name               string    `json:"name" gorm:"not null"`
-	Alpha              string    `json:"alpha" gorm:"not null"`
-	Beta               string    `json:"beta" gorm:"not null"`
-	Mode               string    `json:"mode" gorm:"default:two-way-resolved"`
-	IgnoreVCS          bool      `json:"ignoreVcs"`
-	SymlinkMode        string    `json:"symlinkMode" gorm:"default:ignore"`
-	IgnorePaths        []string  `json:"ignorePaths,omitempty"`
-	MutagenSessionName string    `json:"mutagenSessionName"`
-	Status             string    `json:"status" gorm:"default:"`
-	LastError          string    `json:"lastError"`
-	CreatedAt          time.Time `json:"createdAt"`
-	UpdatedAt          time.Time `json:"updatedAt"`
+	ID                 uint                 `json:"id" gorm:"primaryKey"`
+	MachineID          uint                 `json:"machineId" gorm:"not null;index"`
+	Identifier         string               `json:"identifier" gorm:"index"`
+	Name               string               `json:"name" gorm:"not null"`
+	Alpha              string               `json:"alpha" gorm:"not null"`
+	Beta               string               `json:"beta" gorm:"not null"`
+	Mode               string               `json:"mode" gorm:"default:two-way-resolved"`
+	IgnoreVCS          bool                 `json:"ignoreVcs"`
+	SymlinkMode        string               `json:"symlinkMode" gorm:"default:ignore"`
+	IgnorePaths        []string             `json:"ignorePaths,omitempty"`
+	MutagenSessionName string               `json:"mutagenSessionName"`
+	Status             string               `json:"status" gorm:"default:"`
+	LastError          string               `json:"lastError"`
+	TransitionProblems []TransitionProblem  `json:"transitionProblems,omitempty"`
+	CreatedAt          time.Time            `json:"createdAt"`
+	UpdatedAt          time.Time            `json:"updatedAt"`
+}
+
+// TransitionProblem 单个 transition 问题（文件删除/重命名失败等）
+type TransitionProblem struct {
+	Path  string `json:"path"`
+	Error string `json:"error"`
 }
 
 type MachineConfig struct {

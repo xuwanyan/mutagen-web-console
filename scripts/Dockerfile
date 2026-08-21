@@ -9,6 +9,7 @@ WORKDIR /app
 
 # Server 二进制
 COPY mutagen-web-server_linux ./server
+RUN chmod +x ./server
 
 # 前端静态文件
 COPY web/ ./web/

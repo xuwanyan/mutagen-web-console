@@ -11,10 +11,25 @@ import (
 )
 
 type AgentConfig struct {
-	ServerURL string `json:"server"`
-	Token     string `json:"token"`
-	MachineID string `json:"machineId"`
-	Name      string `json:"name"`
+	ServerURL   string `json:"server"`
+	Token       string `json:"token"`
+	MachineID   string `json:"machineId"`
+	Name        string `json:"name"`
+	RegisterKey string `json:"registerKey,omitempty"` // 服务端配置 -register-key 时需携带
+	// Backup, when present, is written to ~/.mutagen/backup.json on startup so
+	// that the custom mutagen build performs pre-transition backups on this
+	// machine. See mutagen pkg/synchronization/endpoint/local/backup.go.
+	Backup *BackupConfig `json:"backup,omitempty"`
+}
+
+// BackupConfig mirrors the schema of ~/.mutagen/backup.json read by the custom
+// mutagen build. Pointers are used so that omitted fields are not written and
+// thus fall back to mutagen's defaults.
+type BackupConfig struct {
+	Enabled       *bool  `json:"enabled,omitempty"`
+	Dir           string `json:"dir,omitempty"`
+	RetentionDays *int   `json:"retentionDays,omitempty"`
+	FailOpen      *bool  `json:"failOpen,omitempty"`
 }
 
 func loadConfig(path string) (*AgentConfig, error) {
@@ -37,14 +52,38 @@ func saveConfig(path string, cfg *AgentConfig) error {
 	return os.WriteFile(path, data, 0644)
 }
 
+// writeBackupSettings materializes the agent's backup configuration into
+// ~/.mutagen/backup.json so that the custom mutagen daemon on this machine can
+// read it locally (endpoint configuration is not transmitted across the
+// network). It is a no-op when no backup section is configured.
+func writeBackupSettings(cfg *AgentConfig) error {
+	if cfg.Backup == nil {
+		return nil
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return err
+	}
+	dir := filepath.Join(home, ".mutagen")
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return err
+	}
+	data, err := json.MarshalIndent(cfg.Backup, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(filepath.Join(dir, "backup.json"), data, 0644)
+}
+
 func main() {
 	var (
-		configPath = flag.String("config", "", "config file path")
-		serverURL  = flag.String("server", "ws://localhost:8080/ws/agent", "server websocket url")
-		token      = flag.String("token", "", "machine token")
-		machineID  = flag.String("machine-id", "", "machine id")
-		name       = flag.String("name", "", "machine name (for auto register)")
-		logFile    = flag.String("log", "", "log file path (default: C:\\mutagen\\agent.log)")
+		configPath  = flag.String("config", "", "config file path")
+		serverURL   = flag.String("server", "ws://localhost:8080/ws/agent", "server websocket url")
+		token       = flag.String("token", "", "machine token")
+		machineID   = flag.String("machine-id", "", "machine id")
+		name        = flag.String("name", "", "machine name (for auto register)")
+		registerKey = flag.String("register-key", "", "register key for auto-registration (required when server has -register-key set)")
+		logFile     = flag.String("log", "", "log file path (default: C:\\mutagen\\agent.log)")
 	)
 	flag.Parse()
 
@@ -59,10 +98,11 @@ func main() {
 	}
 
 	cfg := &AgentConfig{
-		ServerURL: *serverURL,
-		Token:     *token,
-		MachineID: *machineID,
-		Name:      *name,
+		ServerURL:   *serverURL,
+		Token:       *token,
+		MachineID:   *machineID,
+		Name:        *name,
+		RegisterKey: *registerKey,
 	}
 
 	// 确定配置文件路径：显式指定的优先，否则用 exe 同目录的 agent-config.json
@@ -86,8 +126,19 @@ func main() {
 		if loaded.Name != "" {
 			cfg.Name = loaded.Name
 		}
+		if loaded.RegisterKey != "" {
+			cfg.RegisterKey = loaded.RegisterKey
+		}
+		if loaded.Backup != nil {
+			cfg.Backup = loaded.Backup
+		}
 	} else if *configPath != "" {
 		log.Fatalf("load config failed: %v", err)
+	}
+
+	// Materialize backup settings for the local mutagen daemon (if configured).
+	if err := writeBackupSettings(cfg); err != nil {
+		log.Printf("warning: unable to write backup settings: %v", err)
 	}
 
 	// 校验：要么有 token+machineId（已注册），要么有 name（可自动注册）
@@ -106,7 +157,7 @@ func main() {
 		return nil
 	}
 
-	agent, err := client.NewAgent(cfg.ServerURL, cfg.Token, cfg.MachineID, cfg.Name, resolvedConfigPath, saver)
+	agent, err := client.NewAgent(cfg.ServerURL, cfg.Token, cfg.MachineID, cfg.Name, cfg.RegisterKey, resolvedConfigPath, saver)
 	if err != nil {
 		log.Fatalf("create agent failed: %v", err)
 	}

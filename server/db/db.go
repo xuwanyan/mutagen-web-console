@@ -49,12 +49,16 @@ func Save(value interface{}) error {
 	return errors.New("unsupported type")
 }
 
-func Delete(value interface{}, id uint) error {
+func Delete(value interface{}, id uint, machineID ...uint) error {
 	switch value.(type) {
 	case *models.Machine:
 		return S.DeleteMachine(id)
 	case *models.SyncTask:
-		return S.DeleteTask(0, id)
+		mid := uint(0)
+		if len(machineID) > 0 {
+			mid = machineID[0]
+		}
+		return S.DeleteTask(mid, id)
 	}
 	return errors.New("unsupported type")
 }

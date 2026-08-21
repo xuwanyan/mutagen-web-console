@@ -54,20 +54,17 @@ latest_mtime() {
     local dir="$1"
     shift
     local max=0
-    while IFS= read -r -d '' f; do
-        local t
-        t=$(stat -c %Y "$f" 2>/dev/null || echo 0)
-        if [ "$t" -gt "$max" ]; then max=$t; fi
-    done < <(find "$dir" -type f \( "$@" \) -print0 2>/dev/null)
+    # 用 find -printf 输出 mtime，取最大值（避免进程替换 <(...)，sh 不支持）
+    max=$(find "$dir" -type f \( "$@" \) -printf '%T@\n' 2>/dev/null | sort -rn | head -n1 | cut -d. -f1)
     # 检查 go.mod/go.sum/package.json/package-lock.json
     for extra in go.mod go.sum package.json package-lock.json; do
         if [ -f "$dir/$extra" ]; then
             local t
             t=$(stat -c %Y "$dir/$extra")
-            if [ "$t" -gt "$max" ]; then max=$t; fi
+            if [ -z "$max" ] || [ "$t" -gt "$max" ]; then max=$t; fi
         fi
     done
-    echo "$max"
+    echo "${max:-0}"
 }
 
 need_build() {

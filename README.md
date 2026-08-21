@@ -41,12 +41,14 @@ mutagen-web-console/
 
 ### 前置环境
 
-| 工具 | 版本 | 用途 |
-|---|---|---|
-| Go | 1.22+ | 编译 server / agent / mutagen |
-| Node.js | 18+ | 构建前端 |
-| npm | 9+ | 前端依赖管理 |
-| Docker | 20+ | 构建 Linux 镜像（仅 Linux 端需要） |
+| 工具 | 版本 | 用途 | Windows | Linux |
+|---|---|---|---|---|
+| Go | 1.22+ | 编译 server / agent / mutagen | ✓ | ✓ |
+| Node.js | 18+ | 构建前端 | ✓ | 不需要（用 Docker 容器构建） |
+| npm | 9+ | 前端依赖管理 | ✓ | 不需要 |
+| Docker | 20+ | 构建 Linux 镜像 | — | ✓ |
+
+> Linux 上不需要装 Node.js，`docker-build.sh` 会自动用 `node:20` 容器构建前端。
 
 ### 方式一：Windows 上构建（推荐，开发机用）
 
@@ -76,10 +78,10 @@ bash scripts/docker-build.sh
 ```
 
 `docker-build.sh` 会在 Linux 上：
-1. 检查环境（go / npm / docker）
+1. 检查环境（go / docker，**不需要 Node**）
 2. 交叉编译所有产物（Linux server 原生编译，Windows agent/mutagen 交叉编译）
 3. 构建 mutagen-agents.tar.gz
-4. 构建前端
+4. 构建前端：**通过 Docker 容器**（`node:20` 镜像）跑 `npm install && npm run build`，兼容宿主机 glibc 过老的情况
 5. 复制 scripts/
 6. 运行 agent + server 测试
 7. 构建 Docker 镜像 `mutagen-web`

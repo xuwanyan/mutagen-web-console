@@ -10,9 +10,9 @@
 #   web/                         前端静态文件 (npm run build)
 #   scripts/                     部署脚本（含 Dockerfile）
 # 用法：bash scripts/docker-build.sh
-# 前置：Go 1.22+, Node.js 18+, npm, Docker
+# 前置：Go 1.22+, Docker（Node 不需要，前端用容器构建）
 # ============================================================
-set -e
+set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
@@ -33,18 +33,20 @@ DARK='\033[2;37m'
 RED='\033[0;31m'
 NC='\033[0m'
 
+# 前端构建用的 Node 镜像（兼容 glibc 2.17 的老系统）
+NODE_IMAGE="swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/library/node:20"
+
 # ---------- 环境检查 ----------
 echo -e "${CYAN}=== 检查构建环境 ===${NC}"
-for cmd in go npm docker; do
+for cmd in go docker; do
     if ! command -v $cmd >/dev/null 2>&1; then
         echo -e "${RED}错误: 未找到 $cmd，请先安装${NC}"
         exit 1
     fi
 done
 echo "  go:      $(go version)"
-echo "  node:    $(node --version)"
-echo "  npm:     $(npm --version)"
 echo "  docker:  $(docker --version)"
+echo "  node:    前端用容器构建，宿主机无需安装"
 echo ""
 
 # ---------- helper: 取目录下指定后缀文件的最新 mtime（epoch 秒）----------
@@ -52,7 +54,6 @@ latest_mtime() {
     local dir="$1"
     shift
     local max=0
-    # 遍历所有指定的 glob 模式
     while IFS= read -r -d '' f; do
         local t
         t=$(stat -c %Y "$f" 2>/dev/null || echo 0)
@@ -144,14 +145,14 @@ build_agents_tar() {
 }
 step 4 "mutagen-agents.tar.gz (mutagen/scripts/build.go)" "$BUILD_DIR/mutagen-agents.tar.gz" "$MUTAGEN_SRC_TIME" build_agents_tar
 
-# ---------- [5/6] web frontend ----------
+# ---------- [5/6] web frontend (Docker 容器构建，兼容老系统) ----------
 build_web() {
     cd "$WEB_ROOT"
-    if [ ! -d "$WEB_ROOT/node_modules" ]; then
-        echo -e "${YELLOW}  node_modules missing, running npm install...${NC}"
-        npm install --registry=https://registry.npmmirror.com
-    fi
-    npm run build
+    echo -e "${CYAN}  using Docker container ($NODE_IMAGE) for npm build...${NC}"
+    docker run --rm \
+        -v "$WEB_ROOT:/app" -w /app \
+        "$NODE_IMAGE" \
+        bash -c "npm config set registry https://registry.npmmirror.com && npm install && npm run build"
     if [ ! -d "$WEB_ROOT/dist" ]; then
         echo -e "${RED}web/dist was NOT produced${NC}"
         exit 1
@@ -160,7 +161,7 @@ build_web() {
     mkdir -p "$BUILD_DIR/web"
     cp -r "$WEB_ROOT/dist/." "$BUILD_DIR/web/"
 }
-step 5 "web frontend (npm run build)" "$BUILD_DIR/web/index.html" "$WEB_SRC_TIME" build_web
+step 5 "web frontend (npm run build via Docker)" "$BUILD_DIR/web/index.html" "$WEB_SRC_TIME" build_web
 
 # ---------- [6/6] copy scripts ----------
 copy_scripts() {

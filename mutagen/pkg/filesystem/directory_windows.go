@@ -473,7 +473,20 @@ func (d *Directory) RemoveFile(name string) error {
 	}
 
 	// Remove the file.
-	return windows.DeleteFile(path16)
+	err = windows.DeleteFile(path16)
+	if err == nil {
+		return nil
+	}
+
+	// If access is denied, try clearing the read-only attribute and retry.
+	if err == windows.ERROR_ACCESS_DENIED {
+		if attrs, e := windows.GetFileAttributes(path16); e == nil && (attrs&windows.FILE_ATTRIBUTE_READONLY) != 0 {
+			_ = windows.SetFileAttributes(path16, attrs&^windows.FILE_ATTRIBUTE_READONLY)
+			return windows.DeleteFile(path16)
+		}
+	}
+
+	return err
 }
 
 // RemoveSymbolicLink deletes a symbolic link with the specified name inside the

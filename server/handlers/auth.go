@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -17,14 +18,21 @@ import (
 )
 
 var (
-	username     string
-	passwordHash string
-	tokens       = make(map[string]time.Time)
-	tokensMu     sync.RWMutex
-	authFile     string // auth.json 路径，用于动态重载
-	authFileMod  time.Time
-	authMu       sync.RWMutex
+	userPasswords = make(map[string]string) // username -> bcrypt hash
+	tokens        = make(map[string]time.Time)
+	tokensMu      sync.RWMutex
+	authFile      string // auth.json 路径，用于动态重载
+	authFileMod   time.Time
+	authFileMu    sync.RWMutex // 保护 authFileMod 并发读写
+	userMu        sync.RWMutex // 保护 userPasswords
+	// dummyBcryptHash 用于用户名不存在时消耗等价时间，避免按响应耗时枚举用户名。
+	dummyBcryptHash, _ = bcrypt.GenerateFromPassword([]byte("dummy-timing-equalizer"), bcrypt.DefaultCost)
 )
+
+// isBcryptHash 判断字符串是否为 bcrypt 哈希（支持 $2a$、$2b$、$2y$ 前缀）
+func isBcryptHash(s string) bool {
+	return strings.HasPrefix(s, "$2a$") || strings.HasPrefix(s, "$2b$") || strings.HasPrefix(s, "$2y$")
+}
 
 // loadAuthFile 从 auth.json 重新加载密码
 func loadAuthFile() {
@@ -39,17 +47,20 @@ func loadAuthFile() {
 	if json.Unmarshal(data, &cfg) != nil {
 		return
 	}
+	userMu.Lock()
+	defer userMu.Unlock()
+	// 清空旧用户，用新文件内容覆盖
+	userPasswords = make(map[string]string, len(cfg))
 	for u, h := range cfg {
-		authMu.Lock()
-		username = u
-		if strings.HasPrefix(h, "$2a$") {
-			passwordHash = h
+		if isBcryptHash(h) {
+			userPasswords[u] = h
 		} else {
-			hash, _ := bcrypt.GenerateFromPassword([]byte(h), bcrypt.DefaultCost)
-			passwordHash = string(hash)
+			// 纯文本密码，自动哈希
+			hash, err := bcrypt.GenerateFromPassword([]byte(h), bcrypt.DefaultCost)
+			if err == nil {
+				userPasswords[u] = string(hash)
+			}
 		}
-		authMu.Unlock()
-		break
 	}
 }
 
@@ -64,19 +75,26 @@ func InitAuth(cred string) {
 	if _, err := os.Stat(authFile); err == nil {
 		loadAuthFile()
 		// 记录文件修改时间
+		authFileMu.Lock()
 		if fi, err := os.Stat(authFile); err == nil {
 			authFileMod = fi.ModTime()
 		}
+		authFileMu.Unlock()
 		// 启动定时重载（每 30 秒检查文件变化）
 		go func() {
 			for {
 				time.Sleep(30 * time.Second)
-				if fi, err := os.Stat(authFile); err == nil {
+				authFileMu.Lock()
+				fi, err := os.Stat(authFile)
+				if err == nil {
 					if fi.ModTime().After(authFileMod) {
 						authFileMod = fi.ModTime()
+						authFileMu.Unlock()
 						loadAuthFile()
+						continue
 					}
 				}
+				authFileMu.Unlock()
 			}
 		}()
 		goto initDone
@@ -88,9 +106,10 @@ func InitAuth(cred string) {
 		if len(parts) != 2 {
 			panic("invalid auth format, use username:password")
 		}
-		username = parts[0]
 		hash, _ := bcrypt.GenerateFromPassword([]byte(parts[1]), bcrypt.DefaultCost)
-		passwordHash = string(hash)
+		userMu.Lock()
+		userPasswords[parts[0]] = string(hash)
+		userMu.Unlock()
 	}
 
 initDone:
@@ -121,7 +140,9 @@ func GeneratePasswordHash(password string) (string, error) {
 
 func generateToken() string {
 	b := make([]byte, 16)
-	rand.Read(b)
+	if _, err := rand.Read(b); err != nil {
+		log.Fatalf("crypto/rand.Read failed: %v", err)
+	}
 	return hex.EncodeToString(b)
 }
 
@@ -136,12 +157,14 @@ func LoginHandler(c *gin.Context) {
 		return
 	}
 
-	authMu.RLock()
-	u := username
-	h := passwordHash
-	authMu.RUnlock()
+	userMu.RLock()
+	h, ok := userPasswords[req.Username]
+	userMu.RUnlock()
 
-	if req.Username != u {
+	if !ok {
+		// 用户名不存在：跑一次 bcrypt 比对消耗等价时间，避免按响应
+		// 耗时侧信道枚举有效用户名。结果无论对错都返回 401。
+		_ = bcrypt.CompareHashAndPassword(dummyBcryptHash, []byte(req.Password))
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials"})
 		return
 	}

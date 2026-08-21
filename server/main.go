@@ -16,12 +16,13 @@ import (
 
 func main() {
 	var (
-		addr       = flag.String("addr", ":8080", "server listen address")
-		dbPath     = flag.String("db", "", "database file path")
-		agentBin   = flag.String("agent-bin", "", "agent.exe path for pack download")
-		auth       = flag.String("auth", "", "login credentials (username:password)")
-		printHash  = flag.String("print-hash", "", "generate bcrypt hash of a password and exit")
-	logFile   = flag.String("log", "", "log file path (default: stdout)")
+		addr        = flag.String("addr", ":8080", "server listen address")
+		dbPath      = flag.String("db", "", "database file path")
+		agentBin    = flag.String("agent-bin", "", "agent.exe path for pack download")
+		auth        = flag.String("auth", "", "login credentials (username:password)")
+		registerKey = flag.String("register-key", "", "require agents to provide this key for auto-registration (empty = open)")
+		printHash   = flag.String("print-hash", "", "generate bcrypt hash of a password and exit")
+		logFile     = flag.String("log", "", "log file path (default: stdout)")
 	)
 	flag.Parse()
 
@@ -34,7 +35,18 @@ func main() {
 		log.Fatalf("init database failed: %v", err)
 	}
 
-	hub := ws.NewHub()
+	hub := ws.NewHub(*registerKey)
+	hub.SSHConfigHandler = func(machineID uint, content string, h *ws.Hub) {
+		count, pushErr, err := handlers.SaveSSHParsedConfig(machineID, content, h)
+		if err != nil {
+			log.Printf("auto ssh config save failed (machine %d): %v", machineID, err)
+			return
+		}
+		if pushErr != "" {
+			log.Printf("auto ssh config push back warning (machine %d): %s", machineID, pushErr)
+		}
+		log.Printf("auto ssh config imported %d hosts for machine %d", count, machineID)
+	}
 	go hub.Run()
 
 	gin.SetMode(gin.ReleaseMode)
@@ -104,6 +116,7 @@ func main() {
 		if _, err := os.Stat(dir); err == nil {
 			r.Static("/assets", dir+"/assets")
 			r.StaticFile("/", dir+"/index.html")
+			r.StaticFile("/favicon.svg", dir+"/favicon.svg")
 			r.NoRoute(func(c *gin.Context) {
 				c.File(dir + "/index.html")
 			})

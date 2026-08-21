@@ -21,6 +21,11 @@ jobs:
         with:
           node-version: "20"
 
+      - name: Run Tests (race)
+        run: |
+          cd server && go test ./... -count=1 -race
+          cd ../agent && go test ./... -count=1 -race
+
       - name: Build Mutagen
         run: |
           cd mutagen

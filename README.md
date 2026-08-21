@@ -217,6 +217,78 @@ build/
 
 ---
 
+## 配置文件清单
+
+### 客户端本地（Windows Agent 端）
+
+| 文件路径 | 来源 | 用途 |
+|---|---|---|
+| `<exe同目录>/agent-config.json` | 手动编辑或自动注册后 agent 写回 | Agent 主配置：`server`/`token`/`machineId`/`name`/`backup` 段 |
+| `~/.mutagen.yml` | Server 通过 `update_global_config` 命令推送 | Mutagen 全局配置（Mutagen 标准文件） |
+| `~/.ssh/config` | Server 通过 `update_ssh_config` 命令推送 | SSH 客户端配置，供 mutagen 连接远端 beta endpoint（OpenSSH 标准文件，Windows 下换行会被自动转成 CRLF） |
+| `~/.mutagen/backup.json` | Agent 启动时从 `agent-config.json` 的 `backup` 段自动写入，或 Server 通过 `update_backup_config` 命令推送 | 定制版 mutagen 的落盘前备份配置 |
+
+> `agent-config.json` 是 Agent 自定义文件，其他三个分别是 Mutagen / OpenSSH / 定制版 mutagen 的标准读取文件，路径不可更改。
+
+### 远端（Linux Beta 端）
+
+| 文件路径 | 来源 | 用途 |
+|---|---|---|
+| `~/.mutagen/backup.json` | Agent 通过 SSH（`PushRemoteBackupConfig`）推送 | 与客户端本地相同的备份配置，供远端 mutagen daemon 执行落盘前备份 |
+
+> 远端作为 SSH 被动方，仅需 `~/.mutagen/backup.json` 一个配置文件；不需要 `agent-config.json`、`~/.mutagen.yml`、`~/.ssh/config`。
+
+---
+
+## 落盘前自动备份（pre-transition backup）
+
+定制版 mutagen 支持在把变更**写入磁盘之前**，先把即将被覆盖/删除的旧文件备份到同机另一目录，按日期 → 「增/删/改」 → **每次同步事件** 归档（`<备份根>/<日期>/<op>/<事件号>/<相对路径>`）。备份**在被修改端本地发生**（Windows 端被改就备 Windows、远端被改就备远端），备份完成后同步正常继续。同一文件的历史版本集中在 `modify/` 下按事件目录排列；因每次 modify 备的是“改前”内容，**最早的事件目录即最初原始版本**，`delete/` 下为删除前的最后内容，各版本互不覆盖；同机 `<备份根>/<日期>/manifest.log` 逐条记录「时间·事件号·操作·类型(dir/file)·绝对路径·字节数·会话ID」。
+
+> 配置按机器本地读取（endpoint 配置不随网络传输）：环境变量优先，其次 `~/.mutagen/backup.json`。默认关闭（opt-in）。
+
+### backup.json 字段
+
+```json
+{ "enabled": true, "dir": "", "retentionDays": 7, "failOpen": true }
+```
+
+| 字段 | 默认 | 说明 |
+|---|---|---|
+| `enabled` | `false` | 是否启用落盘前备份 |
+| `dir` | 空 | 备份目录；为空时默认取同步根兄弟目录 `<父目录>/<根名>.mutagen-backup`（必须在同步根之外）。**显式指定时**，因全机任务共用此目录，会自动在其下按同步根路径分子目录（如 `D:\backups\D\FTP\Impath\Acmp\InBox`），避免多任务同名文件撞车 |
+| `retentionDays` | `7` | 保留天数，超过则自动清理（≤0 不清理） |
+| `failOpen` | `true` | 备份失败时：`true`=记录错误并继续落盘；`false`=跳过该文件以保护旧内容 |
+
+也可用环境变量覆盖：`MUTAGEN_BACKUP_ENABLED` / `MUTAGEN_BACKUP_DIR` / `MUTAGEN_BACKUP_RETENTION_DAYS` / `MUTAGEN_BACKUP_FAIL_OPEN`。
+
+### Windows 端（agent）
+
+在 `agent-config.json` 新增 `backup` 段，agent 启动时会自动写入本机 `~/.mutagen/backup.json`：
+
+```json
+{
+  "server": "ws://...",
+  "token": "...",
+  "machineId": "...",
+  "backup": { "enabled": true, "retentionDays": 7 }
+}
+```
+
+### 远端 (beta) Linux
+
+远端 daemon 由 SSH 拉起、无法注入环境变量，采用**一次性部署** `~/.mutagen/backup.json`（默认目录=兄弟目录，故只需开启）：
+
+```bash
+mkdir -p ~/.mutagen
+cat > ~/.mutagen/backup.json <<'EOF'
+{ "enabled": true, "retentionDays": 7 }
+EOF
+```
+
+> 备份目录若落在同步根内部会被自动拒绝启用（避免备份被再次同步）。备份引擎的源码改动详见 `mutagen/CUSTOM-PATCHES.md`。
+
+---
+
 ## 技术栈
 
 | 层 | 技术 |

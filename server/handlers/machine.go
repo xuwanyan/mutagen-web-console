@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"mutagen-web/server/db"
@@ -128,6 +129,8 @@ func deleteMachine(c *gin.Context, hub *ws.Hub) {
 			Params:    map[string]interface{}{},
 		}
 		hub.SendCommand(id, stopCmd)
+		// 给 Agent 1s 时间处理积压命令再断连
+		time.Sleep(1 * time.Second)
 	}
 	db.GetStore().DeleteTasksByMachine(id)
 	db.GetStore().DeleteConfigsByMachine(id)
@@ -135,7 +138,6 @@ func deleteMachine(c *gin.Context, hub *ws.Hub) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	time.Sleep(500 * time.Millisecond)
 	hub.Disconnect(id)
 	c.JSON(http.StatusOK, gin.H{"message": "deleted"})
 }
@@ -270,9 +272,9 @@ func downloadAgentPack(c *gin.Context, hub *ws.Hub) {
 		mutagenAgentsData, _ = os.ReadFile(agentsPath)
 	}
 
-	installBat := "@echo off\ntitle Mutagen Web Agent - Install\n\nset MUTAGEN_DIR=C:\\mutagen\nset SCRIPT_DIR=%%~dp0\n\necho ========================================\necho Mutagen Web Agent - Installing\necho ========================================\necho.\n\nnet session >nul 2>&1\nif %%ERRORLEVEL%% neq 0 (\n    echo [ERROR] Please run as Administrator!\n    pause\n    exit /b 1\n)\n\necho [1/3] Copying files to %%MUTAGEN_DIR%%...\nif not exist \"%%MUTAGEN_DIR%%\" mkdir \"%%MUTAGEN_DIR%%\"\ncopy /Y \"%%SCRIPT_DIR%%mutagen.exe\" \"%%MUTAGEN_DIR%%\\\"\ncopy /Y \"%%SCRIPT_DIR%%mutagen-agents.tar.gz\" \"%%MUTAGEN_DIR%%\\\"\ncopy /Y \"%%SCRIPT_DIR%%mutagen-web-agent.exe\" \"%%MUTAGEN_DIR%%\\\"\ncopy /Y \"%%SCRIPT_DIR%%agent-config.json\" \"%%MUTAGEN_DIR%%\\\"\necho OK\n\necho [2/3] Registering auto-start task...\nschtasks /create /tn \"MutagenWebAgent\" /tr \"%%MUTAGEN_DIR%%\\mutagen-web-agent.exe --config %%MUTAGEN_DIR%%\\agent-config.json -log %%MUTAGEN_DIR%%\\agent.log\" /sc onlogon /ru %%USERNAME%% /rl highest /f\necho OK\n\necho [3/3] Windows Service\necho.\necho To register service manually, run:\necho.\necho   sc create MutagenWebAgent binPath= \"%%MUTAGEN_DIR%%\\mutagen-web-agent.exe --config %%MUTAGEN_DIR%%\\agent-config.json -log %%MUTAGEN_DIR%%\\agent.log\" start= auto obj= \".\\%%USERNAME%%\" password= \"YOUR_PASSWORD\"\necho.\necho Then start:\necho   sc start MutagenWebAgent\necho.\necho ========================================\necho  Install completed!\necho ========================================\npause\n"
+	installBat := "@echo off\ntitle Mutagen Web Agent - Install\n\nset MUTAGEN_DIR=C:\\mutagen\nset SCRIPT_DIR=%%~dp0\n\necho ========================================\necho Mutagen Web Agent - Installing\necho ========================================\necho.\n\nreg query \"HKU\\S-1-5-19\" >nul 2>&1\nif %%ERRORLEVEL%% neq 0 (\n    echo [ERROR] Please run as Administrator!\n    pause\n    exit /b 1\n)\n\necho [1/4] Copying files to %%MUTAGEN_DIR%%...\nif not exist \"%%MUTAGEN_DIR%%\" mkdir \"%%MUTAGEN_DIR%%\"\ncopy /Y \"%%SCRIPT_DIR%%mutagen.exe\" \"%%MUTAGEN_DIR%%\\\"\ncopy /Y \"%%SCRIPT_DIR%%mutagen-agents.tar.gz\" \"%%MUTAGEN_DIR%%\\\"\ncopy /Y \"%%SCRIPT_DIR%%mutagen-web-agent.exe\" \"%%MUTAGEN_DIR%%\\\"\ncopy /Y \"%%SCRIPT_DIR%%agent-config.json\" \"%%MUTAGEN_DIR%%\\\"\necho OK\n\necho [2/4] Setting environment variables...\nsetx MUTAGEN_PATH \"C:\\mutagen\\mutagen.exe\"\npowershell -NoProfile -Command \"$p = [Environment]::GetEnvironmentVariable('PATH','User'); if ($p -and $p -notlike '*C:\\mutagen*') { [Environment]::SetEnvironmentVariable('PATH', $p + ';C:\\mutagen', 'User') } elseif (-not $p) { [Environment]::SetEnvironmentVariable('PATH', 'C:\\mutagen', 'User') }\"\necho OK\n\necho [3/4] Registering auto-start task...\nschtasks /create /tn \"MutagenWebAgent\" /tr \"%%MUTAGEN_DIR%%\\mutagen-web-agent.exe --config %%MUTAGEN_DIR%%\\agent-config.json -log %%MUTAGEN_DIR%%\\agent.log\" /sc onlogon /ru %%USERNAME%% /rl highest /f\necho OK\n\necho [4/4] Windows Service\necho.\necho To register service manually, run:\necho.\necho   sc create MutagenWebAgent binPath= \"%%MUTAGEN_DIR%%\\mutagen-web-agent.exe --config %%MUTAGEN_DIR%%\\agent-config.json -log %%MUTAGEN_DIR%%\\agent.log\" start= auto obj= \".\\%%USERNAME%%\" password= \"YOUR_PASSWORD\"\necho.\necho Then start:\necho   sc start MutagenWebAgent\necho.\necho ========================================\necho  Install completed!\necho ========================================\npause\n"
 
-	readmeText := "Mutagen Web Agent - Installation Guide\n\n1. Extract all files to a folder on the target machine\n\n2. Right-click install.bat > Run as Administrator\n   This will copy files to C:/mutagen/ and register auto-start.\n\n3. To register as Windows service, run as Administrator:\n   sc create MutagenWebAgent binPath= \"C:/mutagen/mutagen-web-agent.exe --config C:/mutagen/agent-config.json -log C:/mutagen/agent.log\" start= auto obj= \"./rpa\" password= \"YOUR_PASSWORD\"\n\n4. Start: sc start MutagenWebAgent\n\nManagement:\n  Start:   sc start MutagenWebAgent\n  Stop:    sc stop MutagenWebAgent\n  Status:  sc query MutagenWebAgent\n  Logs:    C:/mutagen/agent.log\n"
+	readmeText := "Mutagen Web Agent - Installation Guide\n\n1. Extract all files to a folder on the target machine\n\n2. Right-click install.bat > Run as Administrator\n   This will copy files to C:/mutagen/, set environment variables (MUTAGEN_PATH + PATH), and register auto-start.\n\n3. To register as Windows service, run as Administrator:\n   sc create MutagenWebAgent binPath= \"C:/mutagen/mutagen-web-agent.exe --config C:/mutagen/agent-config.json -log C:/mutagen/agent.log\" start= auto obj= \"./rpa\" password= \"YOUR_PASSWORD\"\n\n4. Start: sc start MutagenWebAgent\n\nManagement:\n  Start:   sc start MutagenWebAgent\n  Stop:    sc stop MutagenWebAgent\n  Status:  sc query MutagenWebAgent\n  Logs:    C:/mutagen/agent.log\n\nEnvironment Variables (set automatically by installer):\n  MUTAGEN_PATH = C:\\mutagen\\mutagen.exe\n  PATH += C:\\mutagen\n  * Open a new terminal after installation for env vars to take effect.\n"
 
 	buf := new(bytes.Buffer)
 	w := zip.NewWriter(buf)
@@ -296,8 +298,23 @@ func downloadAgentPack(c *gin.Context, hub *ws.Hub) {
 
 	w.Close()
 
-	safeName := fmt.Sprintf("agent-pack-%s", machine.Name)
+	// machine.Name 由用户输入，可含 CRLF/引号/空格，直接拼进 Content-Disposition
+	// 会构成 HTTP 头注入或文件名截断。白名单过滤后加引号。
 	c.Header("Content-Type", "application/zip")
-	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=%s.zip", safeName))
+	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s.zip\"", sanitizeFilename(machine.Name)))
 	c.Data(http.StatusOK, "application/zip", buf.Bytes())
+}
+
+// sanitizeFilename 仅保留 [A-Za-z0-9._-]，其余替换为 _，防止 CRLF 头注入与文件名截断。
+func sanitizeFilename(s string) string {
+	var b strings.Builder
+	for _, r := range s {
+		switch {
+		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9', r == '.' || r == '_' || r == '-':
+			b.WriteRune(r)
+		default:
+			b.WriteRune('_')
+		}
+	}
+	return b.String()
 }

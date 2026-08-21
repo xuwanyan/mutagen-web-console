@@ -52,6 +52,7 @@ func (s *agentService) Execute(args []string, r <-chan svc.ChangeRequest, change
 		s.cfg.Token,
 		s.cfg.MachineID,
 		s.cfg.Name,
+		s.cfg.RegisterKey,
 		s.configPath,
 		s.saver,
 	)
@@ -83,7 +84,8 @@ func (s *agentService) Execute(args []string, r <-chan svc.ChangeRequest, change
 				changes <- c.CurrentStatus
 			case svc.Stop, svc.Shutdown:
 				log.Println("service stop requested")
-				agent.Close()
+				agent.Stop() // 通知 Run() 退出重连循环
+				<-errCh      // 等待 Run() 返回
 				changes <- svc.Status{State: svc.StopPending}
 				return false, 0
 			default:

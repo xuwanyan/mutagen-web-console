@@ -23,6 +23,8 @@ api.interceptors.response.use(
       authRedirecting = true
       localStorage.removeItem('auth_token')
       setTimeout(() => { window.location.reload() }, 100)
+      // 3s 后重置，防止 reload 被浏览器阻止时后续 401 静默吞掉
+      setTimeout(() => { authRedirecting = false }, 3000)
     }
     return Promise.reject(e)
   }
@@ -45,12 +47,18 @@ export const machineApi = {
 export const taskApi = {
   list: (machineId) => api.get(`/machines/${machineId}/tasks`),
   create: (machineId, data) => api.post(`/machines/${machineId}/tasks`, data),
+  pauseAll: (machineId) => api.post(`/machines/${machineId}/tasks/pause-all`),
+  resumeAll: (machineId) => api.post(`/machines/${machineId}/tasks/resume-all`),
+  terminateAll: (machineId) => api.post(`/machines/${machineId}/tasks/terminate-all`),
   pause: (machineId, taskId) => api.post(`/machines/${machineId}/tasks/${taskId}/pause`),
   resume: (machineId, taskId) => api.post(`/machines/${machineId}/tasks/${taskId}/resume`),
   terminate: (machineId, taskId) => api.delete(`/machines/${machineId}/tasks/${taskId}`),
   refreshStatus: (machineId) => api.post(`/machines/${machineId}/refresh-status`),
+  refreshRemoteAgents: (machineId) => api.post(`/machines/${machineId}/refresh-remote-agents`, {}, { timeout: 70000 }),
   retry: (machineId, taskId) => api.post(`/machines/${machineId}/tasks/${taskId}/retry`),
-  update: (machineId, taskId, data) => api.put(`/machines/${machineId}/tasks/${taskId}`, data)
+  update: (machineId, taskId, data) => api.put(`/machines/${machineId}/tasks/${taskId}`, data),
+  backupData: () => api.get('/backup-data', { responseType: 'blob', timeout: 30000 }),
+  getCommandTemplate: (machineId) => api.get(`/machines/${machineId}/command-template`)
 }
 
 export const configApi = {
@@ -59,5 +67,12 @@ export const configApi = {
   getSSH: (machineId) => api.get(`/machines/${machineId}/config/ssh`),
   updateSSH: (machineId, content) => api.put(`/machines/${machineId}/config/ssh`, { content }),
   getSSHHosts: (machineId) => api.get(`/machines/${machineId}/config/ssh-hosts`),
-  updateSSHHosts: (machineId, hosts) => api.put(`/machines/${machineId}/config/ssh-hosts`, { hosts })
+  updateSSHHosts: (machineId, hosts) => api.put(`/machines/${machineId}/config/ssh-hosts`, { hosts }),
+  importSSHHosts: (machineId) => api.post(`/machines/${machineId}/config/ssh-hosts/import`, {}, { timeout: 40000 }),
+  getBackup: (machineId) => api.get(`/machines/${machineId}/config/backup`),
+  updateBackup: (machineId, data) => api.put(`/machines/${machineId}/config/backup`, data),
+  verifyBackup: (machineId) => api.post(`/machines/${machineId}/config/backup/verify`, {}, { timeout: 40000 }),
+  getBackupLinux: (machineId) => api.get(`/machines/${machineId}/config/backup-linux`),
+  updateBackupLinux: (machineId, data) => api.put(`/machines/${machineId}/config/backup-linux`, data, { timeout: 40000 }),
+  verifyBackupLinux: (machineId) => api.post(`/machines/${machineId}/config/backup-linux/verify`, {}, { timeout: 40000 })
 }

@@ -188,9 +188,15 @@ else
 fi
 
 # ---------- Build Docker image ----------
+# 版本号格式：v年月日时分秒-分支号
+BRANCH=$(git -C "$PROJECT_ROOT" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
+VERSION="v$(date +%Y%m%d%H%M%S)-${BRANCH}"
 echo ""
-echo -e "${CYAN}=== Building Docker image ===${NC}"
-docker build -t mutagen-web -f "$SCRIPT_DIR/Dockerfile" "$BUILD_DIR" || {
+echo -e "${CYAN}=== Building Docker image (tag: ${VERSION}) ===${NC}"
+docker build \
+    -t mutagen-web:latest \
+    -t "mutagen-web:${VERSION}" \
+    -f "$SCRIPT_DIR/Dockerfile" "$BUILD_DIR" || {
     echo -e "${RED}Docker build FAILED${NC}"
     exit 1
 }
@@ -211,7 +217,9 @@ if [ -n "$SKIPPED" ]; then
     echo -e "$SKIPPED"
 fi
 echo ""
-echo -e "${GREEN} Docker image: mutagen-web${NC}"
+echo -e "${GREEN} Docker image tags:${NC}"
+echo -e "  mutagen-web:latest"
+echo -e "  mutagen-web:${VERSION}"
 echo -e "${GREEN} Artifacts in build/:${NC}"
 find "$BUILD_DIR" -maxdepth 2 -type f -printf "  %P  %s bytes  %TY-%Tm-%Td %TH:%TM:%TS\n" | sort
 echo ""
@@ -223,4 +231,7 @@ echo "    --name mutagen-web \\"
 echo "    --restart unless-stopped \\"
 echo "    -p 8080:8080 \\"
 echo "    -v /opt/mutagen-web/data:/app/data \\"
-echo "    mutagen-web"
+echo "    mutagen-web:latest"
+echo ""
+echo -e "${CYAN}指定版本运行：${NC}"
+echo "  docker run -d ... mutagen-web:${VERSION}"

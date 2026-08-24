@@ -188,8 +188,8 @@ else
 fi
 
 # ---------- Build Docker image ----------
-# 版本号格式：v年月日-时分秒-分支号
-BRANCH=$(git -C "$PROJECT_ROOT" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
+# 版本号格式：v年月日-时分秒-分支号（不用 git -C，兼容老版本 git）
+BRANCH=$(cd "$PROJECT_ROOT" && git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
 VERSION="v$(date +%Y%m%d-%H%M%S)-${BRANCH}"
 echo ""
 echo -e "${CYAN}=== Building Docker image (tag: ${VERSION}) ===${NC}"

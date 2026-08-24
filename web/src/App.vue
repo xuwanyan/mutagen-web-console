@@ -128,7 +128,7 @@
           </div>
           <div class="form-row start">
             <label class="field-label">忽略规则</label>
-            <textarea v-model="createTaskModal.ignorePathsText" rows="3" class="ignore-textarea" placeholder="每行一个 pattern，如：&#10;*.crdownload&#10;*.part&#10;*.tmp"></textarea>
+            <textarea v-model="createTaskModal.ignorePathsText" rows="3" class="ignore-textarea" placeholder="每行一个 pattern，如：&#10;*.crdownload&#10;*.part&#10;*.tmp&#10;*.swp&#10;.*.swp&#10;*.swo&#10;*~"></textarea>
           </div>
           <button @click="createTask">创建任务</button>
           <button class="btn-small" @click="createTaskModal.show = false" style="margin-left:8px">取消</button>
@@ -342,7 +342,7 @@
           </div>
           <div class="form-row start">
             <label class="field-label">忽略规则</label>
-            <textarea v-model="editTaskModal.ignorePathsText" rows="3" class="ignore-textarea" placeholder="每行一个 pattern"></textarea>
+            <textarea v-model="editTaskModal.ignorePathsText" rows="3" class="ignore-textarea" placeholder="每行一个 pattern，如：&#10;*.crdownload&#10;*.part&#10;*.tmp&#10;*.swp&#10;.*.swp&#10;*.swo&#10;*~"></textarea>
           </div>
         </div>
         <div class="modal-actions">

@@ -1,6 +1,6 @@
 # Mutagen Web Console 升级指南
 
-> 适用场景：从老版本（无备份功能）升级到新版（含备份功能 + 双指纹远端 agent 自动更新）
+> 适用场景：从老版本（无备份功能）升级到新版（含备份功能 + 双指纹远端 agent 自动更新）  
 > 涉及组件：Server（1台）+ 4台 Windows Agent + 远端 Linux Agent（自动）
 
 ---
@@ -9,11 +9,11 @@
 
 **老配置无需任何修改，新 agent 和 server 能自动解析。**
 
-| 配置文件 | 位置 | 兼容性 | 说明 |
-|----------|------|--------|------|
-| `agent-config.json` | `C:\mutagen\` | ✅ 自动兼容 | 新增 `registerKey`、`backup` 字段均带 `omitempty`，老配置缺失时用默认值（空字符串/nil），不影响运行 |
-| `data.json` | server 的 `data/` 目录 | ✅ 自动兼容 | 结构（machines/tasks/configs/nextId）未变，新字段不在 data.json 中 |
-| `backup.json` | `~/.mutagen/`（两端各一份） | ❌ 需新建 | 老版无此文件，新版需手动创建或通过 Web UI 配置后生效 |
+| 配置文件                | 位置                   | 兼容性    | 说明                                                                    |
+| ------------------- | -------------------- | ------ | --------------------------------------------------------------------- |
+| `agent-config.json` | `C:\mutagen\`        | ✅ 自动兼容 | 新增 `registerKey`、`backup` 字段均带 `omitempty`，老配置缺失时用默认值（空字符串/nil），不影响运行 |
+| `data.json`         | server 的 `data/` 目录  | ✅ 自动兼容 | 结构（machines/tasks/configs/nextId）未变，新字段不在 data.json 中                 |
+| `backup.json`       | `~/.mutagen/`（两端各一份） | ❌ 需新建  | 老版无此文件，新版需手动创建或通过 Web UI 配置后生效                                        |
 
 **结论**：agent-config.json 和 data.json 原样保留，不要删除、不要重命名。只需新增 backup.json。
 
@@ -25,16 +25,17 @@
 
 在开发机 `c:\vscode\mutagen-web-console\build\` 目录下确认以下 6 个产物存在：
 
-| 文件 | 用途 |
-|------|------|
-| `mutagen-web-server.exe` | Server（Windows） |
+| 文件                         | 用途               |
+| -------------------------- | ---------------- |
+| `mutagen-web-server.exe`   | Server（Windows）  |
 | `mutagen-web-server_linux` | Server（Linux，如需） |
-| `mutagen-web-agent.exe` | Agent（Windows） |
-| `mutagen.exe` | 含备份功能的 CLI |
-| `mutagen-agents.tar.gz` | 远端 Linux agent 包 |
-| `web/` | 前端静态资源 |
+| `mutagen-web-agent.exe`    | Agent（Windows）   |
+| `mutagen.exe`              | 含备份功能的 CLI       |
+| `mutagen-agents.tar.gz`    | 远端 Linux agent 包 |
+| `web/`                     | 前端静态资源           |
 
 如缺失，在开发机执行全量构建：
+
 ```powershell
 Set-Location c:\vscode\mutagen-web-console; .\build.ps1
 ```
@@ -42,6 +43,7 @@ Set-Location c:\vscode\mutagen-web-console; .\build.ps1
 ### 2.2 打包 Agent 升级包
 
 在开发机执行：
+
 ```powershell
 $src = "c:\vscode\mutagen-web-console\build"
 $dst = "c:\vscode\mutagen-web-console\agent-upgrade"
@@ -56,6 +58,7 @@ Copy-Item "$src\mutagen-web-agent.exe" $dst\
 ### 2.3 确认 Agent 安装方式
 
 在每台 Windows 机器上确认 agent 的启动方式（二选一）：
+
 ```powershell
 # 方式A：Windows 服务
 sc query MutagenWebAgent
@@ -164,6 +167,7 @@ Start-Process C:\mutagen\mutagen-web-agent.exe -ArgumentList "-config C:\mutagen
 ```
 
 **验证**：
+
 - Web UI 机器列表该机器恢复"在线"状态
 - 查看 `C:\mutagen\agent.log`，应出现：
   ```
@@ -180,12 +184,14 @@ Start-Process C:\mutagen\mutagen-web-agent.exe -ArgumentList "-config C:\mutagen
 ### 第 3 步：远端 Linux Agent 自动更新（无需手动操作）
 
 每台 Windows agent 启动后自动执行：
+
 1. 计算新 `mutagen.exe` + `mutagen-agents.tar.gz` 的双 SHA256 指纹
 2. 和存储的指纹对比，发现变化
 3. SSH 到所有 `~/.ssh/config` 中的远端主机，删除 `~/.mutagen/agents/` 目录
 4. 下次 mutagen 同步连接时，自动推送新 agent 到远端重装
 
 **验证**：在远端 Linux 主机上执行：
+
 ```bash
 ls -la ~/.mutagen/agents/
 # 应看到新的版本目录（如 0.18.1/）
@@ -198,12 +204,14 @@ ls -la ~/.mutagen/agents/
 #### 4.1 配置本机 Windows 备份
 
 在 Web UI → 全局配置 → 备份配置区域：
+
 - 设置 enabled=true、retentionDays=7、failOpen=true
 - dir 留空（默认在同步根兄弟位置创建 `<root>.mutagen-backup`）或填指定路径
 - 点击"**保存本机备份配置**"
 - 点击"**一键校验本机 backup.json**"确认写入成功
 
 或手动创建 `C:\Users\<用户>\.mutagen\backup.json`：
+
 ```json
 {
   "enabled": true,
@@ -216,21 +224,24 @@ ls -la ~/.mutagen/agents/
 #### 4.2 配置远端 Linux 备份
 
 在 Web UI → 全局配置 → 远端 Linux 备份配置区域：
+
 - 设置相同的备份参数
 - 点击"**保存远端Linux备份配置**"（SSH 推送到所有远端主机）
 - 点击"**一键校验远端 backup.json**"确认推送成功
 
 #### 4.3 Pause + Resume 所有同步任务（关键！）
 
-> backup.json 在 endpoint 初始化时读取一次（`NewEndpoint` 函数内），运行中的会话不会自动重读。
+> backup.json 在 endpoint 初始化时读取一次（`NewEndpoint` 函数内），运行中的会话不会自动重读。  
 > **必须 pause + resume 才能让两端 endpoint 重新加载 backup.json，备份配置才生效。**
 
 在 Web UI 操作：
+
 1. 点击"**暂停全部**"
 2. 等待所有任务状态变为"已暂停"
 3. 点击"**恢复全部**"
 
 或在 agent 机器上用 CLI 逐个操作：
+
 ```powershell
 C:\mutagen\mutagen.exe sync pause <task-name>
 C:\mutagen\mutagen.exe sync resume <task-name>
@@ -243,16 +254,13 @@ C:\mutagen\mutagen.exe sync resume <task-name>
    echo "old" > D:\sync-dir\test.txt   # 先确保 test.txt 已存在
    echo "new" > D:\sync-dir\test.txt   # 覆盖 → 触发 modify 备份
    ```
-
 2. 等待同步完成（10秒内 agent 上报周期）
-
 3. 检查备份目录是否出现被覆盖的旧文件：
    ```powershell
    # dir 留空时，默认备份目录在同步根的兄弟位置
    # 例如 D:\sync-dir → D:\sync-dir.mutagen-backup\<日期>\<操作>\<时间戳>\test.txt
    dir D:\sync-dir.mutagen-backup\ -Recurse
    ```
-
 4. 在远端 Linux 上同理验证（默认备份目录是同步根的**兄弟目录**，不在 home 下）：
    ```bash
    # <同步根父目录>/<同步根名>.mutagen-backup，例如同步根 /srv/ftp/InBox → /srv/ftp/InBox.mutagen-backup
@@ -261,6 +269,7 @@ C:\mutagen\mutagen.exe sync resume <task-name>
    ```
 
 备份目录结构：
+
 ```
 <备份根目录>/
 └── <同步根名>.mutagen-backup/      ← dir 留空时自动生成
@@ -277,15 +286,15 @@ C:\mutagen\mutagen.exe sync resume <task-name>
 
 ## 四、升级后验证清单
 
-| 检查项 | 方法 | 预期结果 |
-|--------|------|----------|
-| Server 在线 | Web UI 能登录 | ✅ 正常 |
-| 4台 Agent 在线 | Web UI 机器列表 | ✅ 全部在线 |
-| 任务状态正常 | `mutagen sync list -l`（任一 agent 机器） | ✅ 所有会话可见 |
-| 远端 agent 更新 | agent 日志 `C:\mutagen\agent.log` | ✅ 出现 fingerprint changed + cleaned remote agents |
-| backup.json 本机 | Web UI "一键校验本机" | ✅ 校验通过 |
-| backup.json 远端 | Web UI "一键校验远端" | ✅ 校验通过 |
-| 备份功能生效 | 修改文件触发同步后检查备份目录 | ✅ 出现被覆盖的旧文件 |
+| 检查项            | 方法                                  | 预期结果                                             |
+| -------------- | ----------------------------------- | ------------------------------------------------ |
+| Server 在线      | Web UI 能登录                          | ✅ 正常                                             |
+| 4台 Agent 在线    | Web UI 机器列表                         | ✅ 全部在线                                           |
+| 任务状态正常         | `mutagen sync list -l`（任一 agent 机器） | ✅ 所有会话可见                                         |
+| 远端 agent 更新    | agent 日志 `C:\mutagen\agent.log`     | ✅ 出现 fingerprint changed + cleaned remote agents |
+| backup.json 本机 | Web UI "一键校验本机"                     | ✅ 校验通过                                           |
+| backup.json 远端 | Web UI "一键校验远端"                     | ✅ 校验通过                                           |
+| 备份功能生效         | 修改文件触发同步后检查备份目录                     | ✅ 出现被覆盖的旧文件                                      |
 
 ---
 

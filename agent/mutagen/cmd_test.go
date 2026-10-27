@@ -1,6 +1,9 @@
 package mutagen
 
-import "testing"
+import (
+	"errors"
+	"testing"
+)
 
 // realListOutput 取自真实 `mutagen sync list -l` 输出（3 个会话），
 // 包含 Configuration 章节。会话之间仅用一整行连字符分隔，全程无空行。
@@ -403,5 +406,59 @@ func TestNormalizeModes(t *testing.T) {
 		if got := normalizeSymlinkMode(c.in); got != c.want {
 			t.Errorf("normalizeSymlinkMode(%q) = %q, want %q", c.in, got, c.want)
 		}
+	}
+}
+
+func TestIsSessionNotFound(t *testing.T) {
+	notExistErr := errors.New("exit status 1")
+	cases := []struct {
+		name   string
+		output string
+		err    error
+		want   bool
+	}{
+		{
+			name:   "no error",
+			output: "",
+			err:    nil,
+			want:   false,
+		},
+		{
+			name:   "session not found in output",
+			output: `Error: specification "aaa" did not match any sessions`,
+			err:    notExistErr,
+			want:   true,
+		},
+		{
+			name:   "session not found in err",
+			output: "",
+			err:    errors.New(`specification "aaa" did not match any sessions`),
+			want:   true,
+		},
+		{
+			name:   "daemon unreachable",
+			output: "Error: unable to connect to daemon: connection refused",
+			err:    notExistErr,
+			want:   false,
+		},
+		{
+			name:   "generic exit failure",
+			output: "",
+			err:    notExistErr,
+			want:   false,
+		},
+		{
+			name:   "session locked / in use",
+			output: "Error: unable to halt session: session is locked",
+			err:    notExistErr,
+			want:   false,
+		},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got := IsSessionNotFound(c.output, c.err); got != c.want {
+				t.Errorf("IsSessionNotFound(%q, %v) = %v, want %v", c.output, c.err, got, c.want)
+			}
+		})
 	}
 }

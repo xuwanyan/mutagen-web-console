@@ -2,6 +2,7 @@ package client
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"net/url"
@@ -710,9 +711,25 @@ func (a *Agent) handleCommand(cmd *CommandPayload) {
 		ignoreVcs := getBool(cmd.Params, "ignoreVcs")
 		symlinkMode := getString(cmd.Params, "symlinkMode")
 		ignorePaths := getStringSlice(cmd.Params, "ignorePaths")
-		// 幂等创建：先终止同名会话，避免重建/重试时产生重名会话（不存在时忽略错误）
+		// 幂等创建：先终止同名会话，避免重建/重试时产生重名会话。
+		// 仅"会话不存在"视为正常路径继续 create；其他 terminate 错误说明旧会话可能仍在写盘，
+		// 必须中止 create，避免两个同名 session 同时操作同一目录造成文件损坏。
 		if out, terr := a.Executor.TerminateSync(name); terr != nil {
-			log.Printf("pre-create terminate %s: %s | %v", name, out, terr)
+			if mutagen.IsSessionNotFound(out, terr) {
+				log.Printf("pre-create terminate %s: session not found, proceed to create", name)
+			} else {
+				log.Printf("pre-create terminate %s failed, abort create: %s | %v", name, out, terr)
+				result.Success = false
+				result.Error = fmt.Sprintf("terminate old session failed, abort create to prevent concurrent writers: %s | %v", out, terr)
+				a.ftMu.Lock()
+				a.failedTasks[name] = &failedTask{
+					Params:      cmd.Params,
+					Retries:     0,
+					LastAttempt: time.Now(),
+				}
+				a.ftMu.Unlock()
+				break
+			}
 		}
 		output, err := a.Executor.CreateSync(name, alpha, beta, mode, ignoreVcs, symlinkMode, ignorePaths)
 		if err != nil {
@@ -950,8 +967,19 @@ func (a *Agent) retryFailedTasks() {
 		symlinkMode := getString(ft.Params, "symlinkMode")
 		ignorePaths := getStringSlice(ft.Params, "ignorePaths")
 
-		// 幂等创建：先终止同名会话，防止上次半成功造成重名（不存在时忽略错误）
-		a.Executor.TerminateSync(name)
+		// 幂等创建：先终止同名会话，防止上次半成功造成重名。
+		// 仅"会话不存在"继续 create；其他 terminate 错误说明旧会话可能仍在写盘，
+		// 跳过本次 create，等待下次重试，避免同名 session 并发写造成文件损坏。
+		if out, terr := a.Executor.TerminateSync(name); terr != nil {
+			if mutagen.IsSessionNotFound(out, terr) {
+				// 正常路径，继续 create
+			} else {
+				log.Printf("task %s: pre-create terminate failed, skip create this round: %s | %v", name, out, terr)
+				ft.Retries++
+				ft.LastAttempt = time.Now()
+				continue
+			}
+		}
 		output, err := a.Executor.CreateSync(name, alpha, beta, mode, ignoreVcs, symlinkMode, ignorePaths)
 		ft.Retries++
 		ft.LastAttempt = time.Now()

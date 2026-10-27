@@ -102,6 +102,22 @@ func (e *Executor) TerminateSync(name string) (string, error) {
 	return e.exec("sync", "terminate", name)
 }
 
+// IsSessionNotFound 判定一次 terminate/pause/resume 失败是否属于"会话不存在"。
+// mutagen daemon 在 specification 未命中任何会话时返回错误：
+//   specification "xxx" did not match any sessions
+// 该错误经 gRPC 透传到 CLI，最终出现在 CombinedOutput 中。
+// 用于 create_sync 前的 pre-terminate 区分对待：
+//   - "不存在"是正常路径（首次创建场景），应继续 create；
+//   - 其他错误（daemon 卡死、RPC 异常、文件锁等）说明旧会话可能仍在写盘，
+//     必须中止 create，避免两个同名 session 同时操作同一目录造成文件损坏。
+func IsSessionNotFound(output string, err error) bool {
+	if err == nil {
+		return false
+	}
+	combined := output + "\n" + err.Error()
+	return strings.Contains(combined, "did not match any sessions")
+}
+
 func (e *Executor) ListSyncs() (string, error) {
 	// 使用 -l 长格式输出，获取配置参数（mode、symlinkMode、ignore 等）
 	return e.exec("sync", "list", "-l")

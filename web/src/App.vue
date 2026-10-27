@@ -174,7 +174,7 @@
                 <button class="btn-small" :disabled="isPaused(t)" :class="{ 'btn-disabled': isPaused(t) }" @click="pauseTask(t.id)">暂停</button>
                 <button class="btn-small" :disabled="!isPaused(t)" :class="{ 'btn-disabled': !isPaused(t) }" @click="resumeTask(t.id)">恢复</button>
                 <button class="btn-small" @click="openEditTaskModal(t)">编辑</button>
-                <button class="btn-small" @click="retryTask(t.id)">重建</button>
+                <button class="btn-small" :disabled="!!retryingTasks[t.id]" @click="retryTask(t.id)">{{ retryingTasks[t.id] ? '重建中…' : '重建' }}</button>
                 <button class="btn-small danger" @click="openTerminateModal(t.id)">终止</button>
               </td>
             </tr>
@@ -800,13 +800,22 @@ async function createTask() {
 }
 
 // --- 重建任务 ---
+// 记录正在重建中的 taskId，防止连点造成重复下发（agent 端虽幂等，但避免抖动）
+const retryingTasks = ref({})
+
 async function retryTask(taskId) {
+  if (retryingTasks.value[taskId]) return
+  retryingTasks.value = { ...retryingTasks.value, [taskId]: true }
   try {
     await taskApi.retry(selectedMachineId.value, taskId)
     showMsg('重建命令已下发')
     later(loadTasks, 1200)
   } catch (e) {
     showMsg('重建失败: ' + e.message, 'error')
+  } finally {
+    const next = { ...retryingTasks.value }
+    delete next[taskId]
+    retryingTasks.value = next
   }
 }
 

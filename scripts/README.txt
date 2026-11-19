@@ -21,6 +21,7 @@ Mutagen Web Agent - Installation Guide
 ========================================
 Files:
   mutagen.exe               - Mutagen sync engine
+  mutagen-agents.tar.gz     - Mutagen cross-platform agent bundle
   mutagen-web-agent.exe     - Agent binary
   agent-config.json         - Agent configuration
   install.bat               - Installation script
